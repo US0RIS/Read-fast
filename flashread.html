@@ -1,0 +1,1004 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>FLASHREAD — RSVP PDF Speed Reader</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0a08;
+    --bg-2: #131310;
+    --bg-3: #1b1b17;
+    --fg: #e8e8e0;
+    --fg-dim: #8a8a82;
+    --fg-dimmer: #4a4a44;
+    --accent: #c4f03e;
+    --accent-dim: #6a8420;
+    --pivot: #ff5b3a;
+    --border: #2a2a24;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: 'DM Mono', monospace;
+    font-weight: 400;
+    min-height: 100vh;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(196,240,62,0.04), transparent 60%),
+      linear-gradient(180deg, var(--bg) 0%, #08080a 100%);
+    background-attachment: fixed;
+  }
+
+  /* Subtle grain */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1;
+    opacity: 0.035;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/></svg>");
+  }
+
+  .shell {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 32px 28px 80px;
+    position: relative;
+    z-index: 2;
+  }
+
+  /* ===== HEADER ===== */
+  header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 18px;
+    margin-bottom: 32px;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .brand {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+  }
+  .logo {
+    font-family: 'Instrument Serif', serif;
+    font-size: 36px;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    color: var(--fg);
+  }
+  .logo em {
+    font-style: italic;
+    color: var(--accent);
+  }
+  .tag {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.22em;
+    color: var(--fg-dim);
+  }
+  .meta-line {
+    font-size: 10px;
+    color: var(--fg-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    display: flex;
+    gap: 18px;
+  }
+  .meta-line .dot {
+    color: var(--accent);
+  }
+
+  /* ===== PANELS ===== */
+  .panel {
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 24px;
+    margin-bottom: 20px;
+    position: relative;
+  }
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 18px;
+  }
+  .panel-title {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.25em;
+    color: var(--fg-dim);
+  }
+  .panel-title .num {
+    color: var(--accent);
+    margin-right: 8px;
+  }
+
+  /* ===== DROPZONE ===== */
+  .drop {
+    border: 1px dashed var(--border);
+    border-radius: 2px;
+    padding: 48px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.18s, background 0.18s;
+    position: relative;
+  }
+  .drop:hover, .drop.drag {
+    border-color: var(--accent);
+    background: rgba(196,240,62,0.025);
+  }
+  .drop .icon {
+    font-family: 'Instrument Serif', serif;
+    font-style: italic;
+    font-size: 56px;
+    color: var(--accent);
+    line-height: 1;
+    margin-bottom: 14px;
+  }
+  .drop .primary {
+    font-size: 14px;
+    color: var(--fg);
+    margin-bottom: 6px;
+  }
+  .drop .secondary {
+    font-size: 11px;
+    color: var(--fg-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+  }
+  .drop input[type="file"] {
+    display: none;
+  }
+  .file-info {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    background: var(--bg-3);
+    border: 1px solid var(--border);
+    font-size: 12px;
+    margin-top: 14px;
+  }
+  .file-info.active { display: flex; }
+  .file-info .name { color: var(--accent); }
+  .file-info .clear {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--fg-dim);
+    font-family: inherit;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    padding: 4px 10px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .file-info .clear:hover {
+    color: var(--fg);
+    border-color: var(--fg-dim);
+  }
+
+  /* ===== CONTROLS GRID ===== */
+  .controls-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px 20px;
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0; /* lets children shrink properly inside the grid */
+  }
+  .field.full {
+    grid-column: 1 / -1;
+  }
+  @media (max-width: 520px) {
+    .controls-grid { grid-template-columns: 1fr; }
+  }
+  .field label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: var(--fg-dim);
+  }
+  .field input[type="number"], .field select {
+    background: var(--bg-3);
+    border: 1px solid var(--border);
+    color: var(--fg);
+    font-family: 'DM Mono', monospace;
+    font-size: 14px;
+    padding: 10px 12px;
+    border-radius: 2px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .field input[type="number"]:focus, .field select:focus {
+    border-color: var(--accent);
+  }
+  .field input[disabled], .field select[disabled] {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  .field .hint {
+    font-size: 10px;
+    color: var(--fg-dimmer);
+    letter-spacing: 0.05em;
+  }
+
+  /* WPM slider field */
+  .wpm-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .wpm-display {
+    font-family: 'Instrument Serif', serif;
+    font-size: 32px;
+    color: var(--accent);
+    line-height: 1;
+    min-width: 70px;
+  }
+  .wpm-display .unit {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--fg-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    margin-left: 4px;
+  }
+  input[type="range"] {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 2px;
+    background: var(--border);
+    outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    background: var(--accent);
+    cursor: pointer;
+    border-radius: 0;
+    border: 2px solid var(--bg-2);
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    background: var(--accent);
+    cursor: pointer;
+    border-radius: 0;
+    border: 2px solid var(--bg-2);
+  }
+
+  /* ===== ACTION BUTTONS ===== */
+  .actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
+    flex-wrap: wrap;
+  }
+  button.btn {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.22em;
+    padding: 14px 22px;
+    border: 1px solid var(--border);
+    background: var(--bg-3);
+    color: var(--fg);
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.15s;
+  }
+  button.btn:hover:not(:disabled) {
+    border-color: var(--fg-dim);
+    color: var(--fg);
+  }
+  button.btn.primary {
+    background: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
+    font-weight: 500;
+  }
+  button.btn.primary:hover:not(:disabled) {
+    background: #d6ff52;
+    border-color: #d6ff52;
+  }
+  button.btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  /* ===== READER STAGE ===== */
+  .stage {
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 72px 24px 56px;
+    min-height: 360px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Vertical focal guide — anchors the pivot letter dead-center */
+  .stage::before, .stage::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    width: 1px;
+    height: 14px;
+    background: var(--accent-dim);
+    transform: translateX(-50%);
+  }
+  .stage::before { top: 32%; }
+  .stage::after { bottom: 32%; }
+
+  /* Pivot-anchored layout: the pivot letter sits at the horizontal
+     center of the stage. The before-text is absolutely positioned to
+     the LEFT of the pivot (right-aligned, ending where pivot begins).
+     The after-text is absolutely positioned to the RIGHT of the pivot
+     (left-aligned, starting where pivot ends). The word's geometric
+     center is irrelevant — only the focal letter is centered. */
+  .word-display {
+    font-family: 'DM Mono', monospace;
+    font-size: clamp(32px, 7vw, 60px);
+    font-weight: 400;
+    letter-spacing: 0;
+    line-height: 1;
+    height: 1.2em;
+    width: 100%;
+    position: relative;
+    white-space: pre;
+  }
+  .word-display .pivot {
+    color: var(--pivot);
+    position: absolute;
+    left: 50%;
+    top: 0;
+    transform: translateX(-50%);
+  }
+  .word-display .before {
+    color: var(--fg);
+    position: absolute;
+    right: 50%;
+    top: 0;
+    /* shift right by half the pivot's width so we end exactly where the pivot starts */
+    transform: translateX(calc(-1 * var(--pivot-half, 0.5ch)));
+    text-align: right;
+  }
+  .word-display .after {
+    color: var(--fg);
+    position: absolute;
+    left: 50%;
+    top: 0;
+    /* shift left by half the pivot's width so we start exactly where the pivot ends */
+    transform: translateX(var(--pivot-half, 0.5ch));
+    text-align: left;
+  }
+
+  .stage-placeholder {
+    font-family: 'Instrument Serif', serif;
+    font-style: italic;
+    font-size: 32px;
+    color: var(--fg-dimmer);
+  }
+
+  /* progress + word counter */
+  .stage-meta {
+    position: absolute;
+    bottom: 14px;
+    left: 24px;
+    right: 24px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: var(--fg-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+  }
+  .stage-meta .accent { color: var(--accent); }
+
+  .progress {
+    height: 2px;
+    background: var(--border);
+    margin-top: -1px; /* visually attach to stage panel border */
+    position: relative;
+    overflow: hidden;
+  }
+  .progress-bar {
+    position: absolute;
+    inset: 0 100% 0 0;
+    background: var(--accent);
+    transition: right 0.12s linear;
+  }
+
+  /* playback controls */
+  .playback {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 22px;
+    flex-wrap: wrap;
+  }
+
+  /* ===== STATUS LINE ===== */
+  .status {
+    margin-top: 18px;
+    padding: 12px 16px;
+    border-left: 2px solid var(--accent);
+    background: rgba(196,240,62,0.04);
+    font-size: 11px;
+    color: var(--fg-dim);
+    letter-spacing: 0.05em;
+    display: none;
+  }
+  .status.show { display: block; }
+  .status.err {
+    border-left-color: #ff5b3a;
+    background: rgba(255,91,58,0.05);
+    color: #ffaa92;
+  }
+
+  /* ===== FOOTER ===== */
+  footer {
+    margin-top: 40px;
+    padding-top: 18px;
+    border-top: 1px solid var(--border);
+    font-size: 10px;
+    color: var(--fg-dimmer);
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  /* ===== KEYBOARD HINT ===== */
+  .kb {
+    display: inline-block;
+    padding: 2px 6px;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    font-size: 9px;
+    color: var(--fg-dim);
+    margin-left: 8px;
+    letter-spacing: 0.08em;
+    vertical-align: middle;
+    line-height: 1;
+  }
+  button.btn .kb {
+    /* prevent the parent button's wide letter-spacing from inflating the badge */
+    letter-spacing: 0.08em;
+  }
+
+  @media (max-width: 600px) {
+    .shell { padding: 20px 16px 60px; }
+    .logo { font-size: 28px; }
+    .stage { padding: 40px 16px; min-height: 280px; }
+    .wpm-display { font-size: 24px; min-width: 56px; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <header>
+    <div class="brand">
+      <h1 class="logo">flash<em>read</em></h1>
+      <span class="tag">RSVP · PDF Speed Reader</span>
+    </div>
+    <div class="meta-line">
+      <span><span class="dot">●</span> READY</span>
+      <span id="metaWords">0 WORDS</span>
+      <span id="metaPages">— PAGES</span>
+    </div>
+  </header>
+
+  <!-- 1. UPLOAD -->
+  <section class="panel">
+    <div class="panel-header">
+      <div class="panel-title"><span class="num">01</span>SOURCE</div>
+    </div>
+    <label class="drop" id="drop" for="pdfInput">
+      <div class="icon">↧</div>
+      <div class="primary">Drop a PDF here or click to browse</div>
+      <div class="secondary">files never leave your browser</div>
+      <input type="file" id="pdfInput" accept="application/pdf" />
+    </label>
+    <div class="file-info" id="fileInfo">
+      <span><span class="name" id="fileName"></span> &middot; <span id="fileMeta"></span></span>
+      <button class="clear" id="clearFile">CLEAR</button>
+    </div>
+    <div class="status" id="status"></div>
+  </section>
+
+  <!-- 2. RANGE + SETTINGS -->
+  <section class="panel">
+    <div class="panel-header">
+      <div class="panel-title"><span class="num">02</span>RANGE &amp; PACE</div>
+    </div>
+    <div class="controls-grid">
+      <div class="field">
+        <label for="pageStart">Start page</label>
+        <input type="number" id="pageStart" min="1" value="1" disabled />
+        <span class="hint" id="hintStart">load a pdf first</span>
+      </div>
+      <div class="field">
+        <label for="pageEnd">End page</label>
+        <input type="number" id="pageEnd" min="1" value="1" disabled />
+        <span class="hint" id="hintEnd">inclusive</span>
+      </div>
+      <div class="field full">
+        <label for="wpm">Words per minute</label>
+        <div class="wpm-row">
+          <div class="wpm-display"><span id="wpmVal">350</span><span class="unit">wpm</span></div>
+          <input type="range" id="wpm" min="100" max="1200" step="25" value="350" />
+        </div>
+        <span class="hint">average reader ≈ 250 · trained speed reader ≈ 700+</span>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn primary" id="loadBtn" disabled>EXTRACT TEXT</button>
+    </div>
+  </section>
+
+  <!-- 3. READER -->
+  <section class="panel">
+    <div class="panel-header">
+      <div class="panel-title"><span class="num">03</span>READER</div>
+    </div>
+    <div class="stage" id="stage">
+      <div class="stage-placeholder" id="placeholder">awaiting text…</div>
+      <div class="word-display" id="wordDisplay" style="display:none;">
+        <span class="before"></span><span class="pivot"></span><span class="after"></span>
+      </div>
+      <div class="stage-meta">
+        <span id="metaPosition">— / —</span>
+        <span class="accent" id="metaState">IDLE</span>
+      </div>
+    </div>
+    <div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+    <div class="playback">
+      <button class="btn primary" id="playBtn" disabled>PLAY <span class="kb">SPACE</span></button>
+      <button class="btn" id="restartBtn" disabled>RESTART <span class="kb">R</span></button>
+      <button class="btn" id="backBtn" disabled>−10 <span class="kb">←</span></button>
+      <button class="btn" id="fwdBtn" disabled>+10 <span class="kb">→</span></button>
+    </div>
+  </section>
+
+  <footer>
+    <span>FLASHREAD · v1.0</span>
+    <span>RSVP w/ optimal recognition point</span>
+  </footer>
+
+</div>
+
+<script>
+  // ============================================================
+  //  FLASHREAD — RSVP PDF speed reader
+  // ============================================================
+
+  // PDF.js worker
+  if (typeof pdfjsLib !== 'undefined') {
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  }
+
+  // ---------- state ----------
+  const state = {
+    pdf: null,
+    fileName: '',
+    pageCount: 0,
+    words: [],          // array of strings
+    idx: 0,             // current word index
+    playing: false,
+    timer: null,
+    wpm: 350,
+  };
+
+  // ---------- elements ----------
+  const $ = (id) => document.getElementById(id);
+  const drop = $('drop');
+  const pdfInput = $('pdfInput');
+  const fileInfo = $('fileInfo');
+  const fileName = $('fileName');
+  const fileMeta = $('fileMeta');
+  const clearFile = $('clearFile');
+  const status = $('status');
+
+  const pageStart = $('pageStart');
+  const pageEnd = $('pageEnd');
+  const hintStart = $('hintStart');
+  const hintEnd = $('hintEnd');
+  const wpmSlider = $('wpm');
+  const wpmVal = $('wpmVal');
+
+  const loadBtn = $('loadBtn');
+
+  const stage = $('stage');
+  const placeholder = $('placeholder');
+  const wordDisplay = $('wordDisplay');
+  const wBefore = wordDisplay.querySelector('.before');
+  const wPivot = wordDisplay.querySelector('.pivot');
+  const wAfter = wordDisplay.querySelector('.after');
+  const metaPosition = $('metaPosition');
+  const metaState = $('metaState');
+  const metaWords = $('metaWords');
+  const metaPages = $('metaPages');
+  const progressBar = $('progressBar');
+
+  const playBtn = $('playBtn');
+  const restartBtn = $('restartBtn');
+  const backBtn = $('backBtn');
+  const fwdBtn = $('fwdBtn');
+
+  // ---------- helpers ----------
+  function setStatus(msg, isErr = false) {
+    if (!msg) { status.classList.remove('show', 'err'); return; }
+    status.textContent = msg;
+    status.classList.add('show');
+    status.classList.toggle('err', isErr);
+  }
+
+  function fmtBytes(b) {
+    if (b < 1024) return b + ' B';
+    if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
+    return (b / 1048576).toFixed(2) + ' MB';
+  }
+
+  // Optimal Recognition Point: roughly 30-35% into the word.
+  // This is the letter the eye actually fixates on.
+  function pivotIndex(word) {
+    const n = word.length;
+    if (n <= 1) return 0;
+    if (n <= 3) return 1;
+    if (n <= 5) return 1;
+    if (n <= 9) return 2;
+    if (n <= 13) return 3;
+    return 4;
+  }
+
+  function renderWord(w) {
+    if (!w) {
+      wBefore.textContent = '';
+      wPivot.textContent = '';
+      wAfter.textContent = '';
+      return;
+    }
+    const p = pivotIndex(w);
+    wBefore.textContent = w.slice(0, p);
+    wPivot.textContent = w.charAt(p);
+    wAfter.textContent = w.slice(p + 1);
+  }
+
+  // Some words deserve a longer pause: punctuation, long words.
+  function delayForWord(w, baseMs) {
+    let factor = 1;
+    const last = w.charAt(w.length - 1);
+    if (last === '.' || last === '!' || last === '?') factor = 2.0;
+    else if (last === ',' || last === ';' || last === ':') factor = 1.5;
+    else if (last === ')' || last === ']' || last === '"') factor = 1.2;
+    if (w.length > 8) factor *= 1.15;
+    if (w.length > 12) factor *= 1.15;
+    return baseMs * factor;
+  }
+
+  function updateMeta() {
+    metaPosition.textContent =
+      state.words.length
+        ? `${state.idx + 1} / ${state.words.length}`
+        : '— / —';
+    const pct = state.words.length
+      ? ((state.idx + 1) / state.words.length) * 100
+      : 0;
+    progressBar.style.right = (100 - pct) + '%';
+  }
+
+  function setStage(playing) {
+    metaState.textContent = playing ? 'PLAYING' : (state.words.length ? 'PAUSED' : 'IDLE');
+    const label = playing ? 'PAUSE' : (state.idx > 0 ? 'RESUME' : 'PLAY');
+    playBtn.innerHTML = label + ' <span class="kb">SPACE</span>';
+  }
+
+  // ---------- file upload ----------
+  drop.addEventListener('click', () => pdfInput.click());
+  drop.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    drop.classList.add('drag');
+  });
+  drop.addEventListener('dragleave', () => drop.classList.remove('drag'));
+  drop.addEventListener('drop', (e) => {
+    e.preventDefault();
+    drop.classList.remove('drag');
+    const f = e.dataTransfer.files[0];
+    if (f) handleFile(f);
+  });
+  pdfInput.addEventListener('change', (e) => {
+    const f = e.target.files[0];
+    if (f) handleFile(f);
+  });
+
+  clearFile.addEventListener('click', resetAll);
+
+  async function handleFile(file) {
+    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+      setStatus('That doesn\'t look like a PDF.', true);
+      return;
+    }
+    setStatus('Reading PDF…');
+    try {
+      const buf = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+      state.pdf = pdf;
+      state.fileName = file.name;
+      state.pageCount = pdf.numPages;
+
+      fileName.textContent = file.name;
+      fileMeta.textContent = `${pdf.numPages} pages · ${fmtBytes(file.size)}`;
+      fileInfo.classList.add('active');
+      drop.style.display = 'none';
+
+      pageStart.disabled = false;
+      pageEnd.disabled = false;
+      pageStart.min = 1;
+      pageStart.max = pdf.numPages;
+      pageEnd.min = 1;
+      pageEnd.max = pdf.numPages;
+      pageStart.value = 1;
+      pageEnd.value = pdf.numPages;
+      hintStart.textContent = `1 – ${pdf.numPages}`;
+      hintEnd.textContent = `1 – ${pdf.numPages}`;
+
+      loadBtn.disabled = false;
+      metaPages.textContent = `${pdf.numPages} PAGES`;
+
+      setStatus(`Loaded ${pdf.numPages} pages.`);
+    } catch (err) {
+      console.error(err);
+      setStatus('Failed to read the PDF — it may be encrypted or corrupted.', true);
+      resetAll();
+    }
+  }
+
+  function resetAll() {
+    stopPlayback();
+    state.pdf = null;
+    state.fileName = '';
+    state.pageCount = 0;
+    state.words = [];
+    state.idx = 0;
+    pdfInput.value = '';
+    fileInfo.classList.remove('active');
+    drop.style.display = '';
+    pageStart.disabled = true;
+    pageEnd.disabled = true;
+    pageStart.value = 1;
+    pageEnd.value = 1;
+    hintStart.textContent = 'load a pdf first';
+    hintEnd.textContent = 'inclusive';
+    loadBtn.disabled = true;
+    playBtn.disabled = true;
+    restartBtn.disabled = true;
+    backBtn.disabled = true;
+    fwdBtn.disabled = true;
+    placeholder.style.display = '';
+    wordDisplay.style.display = 'none';
+    metaPosition.textContent = '— / —';
+    metaState.textContent = 'IDLE';
+    metaWords.textContent = '0 WORDS';
+    metaPages.textContent = '— PAGES';
+    progressBar.style.right = '100%';
+    setStatus('');
+  }
+
+  // ---------- WPM ----------
+  wpmSlider.addEventListener('input', (e) => {
+    state.wpm = parseInt(e.target.value, 10);
+    wpmVal.textContent = state.wpm;
+    // if currently playing, the next tick will pick up the new pace naturally
+  });
+
+  // ---------- text extraction ----------
+  loadBtn.addEventListener('click', extractText);
+
+  async function extractText() {
+    if (!state.pdf) return;
+    stopPlayback();
+
+    let s = parseInt(pageStart.value, 10);
+    let e = parseInt(pageEnd.value, 10);
+    if (isNaN(s) || isNaN(e)) {
+      setStatus('Enter valid page numbers.', true);
+      return;
+    }
+    s = Math.max(1, Math.min(state.pageCount, s));
+    e = Math.max(1, Math.min(state.pageCount, e));
+    if (s > e) { const t = s; s = e; e = t; }
+    pageStart.value = s;
+    pageEnd.value = e;
+
+    setStatus(`Extracting pages ${s}–${e}…`);
+    loadBtn.disabled = true;
+
+    try {
+      let all = '';
+      for (let i = s; i <= e; i++) {
+        const page = await state.pdf.getPage(i);
+        const content = await page.getTextContent();
+        // join items, inserting a space when item.hasEOL or different line
+        let pageText = '';
+        let lastY = null;
+        for (const item of content.items) {
+          if (typeof item.str !== 'string') continue;
+          // crude line-break detection
+          const y = item.transform ? item.transform[5] : null;
+          if (lastY !== null && y !== null && Math.abs(y - lastY) > 1) {
+            pageText += ' ';
+          }
+          pageText += item.str;
+          if (item.hasEOL) pageText += ' ';
+          lastY = y;
+        }
+        all += pageText + ' ';
+        setStatus(`Extracting pages ${s}–${e}… (${i - s + 1}/${e - s + 1})`);
+      }
+
+      // tokenize: split on whitespace, drop empties, repair hyphenated line breaks
+      // Repair words split across lines like "exam- ple" -> "example"
+      all = all.replace(/-\s+/g, '');
+      // Normalize whitespace
+      const tokens = all.split(/\s+/).filter(Boolean);
+
+      if (!tokens.length) {
+        setStatus('No readable text found in that range. The PDF may be scanned images.', true);
+        loadBtn.disabled = false;
+        return;
+      }
+
+      state.words = tokens;
+      state.idx = 0;
+      metaWords.textContent = tokens.length.toLocaleString() + ' WORDS';
+      placeholder.style.display = 'none';
+      wordDisplay.style.display = 'flex';
+      renderWord(state.words[0]);
+      updateMeta();
+      playBtn.disabled = false;
+      restartBtn.disabled = false;
+      backBtn.disabled = false;
+      fwdBtn.disabled = false;
+      loadBtn.disabled = false;
+      setStatus(`Ready. ${tokens.length.toLocaleString()} words from pages ${s}–${e}. Hit PLAY or press SPACE.`);
+      setStage(false);
+    } catch (err) {
+      console.error(err);
+      setStatus('Failed to extract text from those pages.', true);
+      loadBtn.disabled = false;
+    }
+  }
+
+  // ---------- playback ----------
+  function tick() {
+    if (!state.playing) return;
+    if (state.idx >= state.words.length) {
+      stopPlayback();
+      state.idx = state.words.length - 1;
+      metaState.textContent = 'DONE';
+      return;
+    }
+    const w = state.words[state.idx];
+    renderWord(w);
+    updateMeta();
+    const baseMs = 60000 / state.wpm;
+    const ms = delayForWord(w, baseMs);
+    state.idx++;
+    state.timer = setTimeout(tick, ms);
+  }
+
+  function startPlayback() {
+    if (!state.words.length) return;
+    if (state.idx >= state.words.length) state.idx = 0;
+    state.playing = true;
+    setStage(true);
+    tick();
+  }
+
+  function stopPlayback() {
+    state.playing = false;
+    if (state.timer) { clearTimeout(state.timer); state.timer = null; }
+    setStage(false);
+  }
+
+  function togglePlayback() {
+    if (!state.words.length) return;
+    if (state.playing) stopPlayback();
+    else startPlayback();
+  }
+
+  playBtn.addEventListener('click', togglePlayback);
+  restartBtn.addEventListener('click', () => {
+    stopPlayback();
+    state.idx = 0;
+    renderWord(state.words[0]);
+    updateMeta();
+    setStage(false);
+  });
+  backBtn.addEventListener('click', () => {
+    if (!state.words.length) return;
+    const wasPlaying = state.playing;
+    stopPlayback();
+    state.idx = Math.max(0, state.idx - 10);
+    renderWord(state.words[state.idx]);
+    updateMeta();
+    if (wasPlaying) startPlayback();
+  });
+  fwdBtn.addEventListener('click', () => {
+    if (!state.words.length) return;
+    const wasPlaying = state.playing;
+    stopPlayback();
+    state.idx = Math.min(state.words.length - 1, state.idx + 10);
+    renderWord(state.words[state.idx]);
+    updateMeta();
+    if (wasPlaying) startPlayback();
+  });
+
+  // ---------- keyboard ----------
+  window.addEventListener('keydown', (e) => {
+    // ignore if user is typing in an input
+    const tag = (e.target.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+    if (e.code === 'Space') {
+      e.preventDefault();
+      togglePlayback();
+    } else if (e.key === 'r' || e.key === 'R') {
+      if (!restartBtn.disabled) restartBtn.click();
+    } else if (e.key === 'ArrowLeft') {
+      if (!backBtn.disabled) backBtn.click();
+    } else if (e.key === 'ArrowRight') {
+      if (!fwdBtn.disabled) fwdBtn.click();
+    }
+  });
+
+  // page range validation
+  pageStart.addEventListener('change', () => {
+    let v = parseInt(pageStart.value, 10);
+    if (isNaN(v)) v = 1;
+    v = Math.max(1, Math.min(state.pageCount || 1, v));
+    pageStart.value = v;
+  });
+  pageEnd.addEventListener('change', () => {
+    let v = parseInt(pageEnd.value, 10);
+    if (isNaN(v)) v = 1;
+    v = Math.max(1, Math.min(state.pageCount || 1, v));
+    pageEnd.value = v;
+  });
+</script>
+</body>
+</html>
